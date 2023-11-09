@@ -1,3 +1,5 @@
+from typing import Optional
+
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -54,3 +56,4 @@ while True:
 # release the webcam and destroy all active windows
 cap.release()
 cv2.destroyAllWindows()
+
