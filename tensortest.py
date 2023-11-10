@@ -14,7 +14,7 @@ mpDraw = mp.solutions.drawing_utils
 
 # Load the gesture recognizer model
 # Load class names
-with  open('gestures.txt', 'r') as f:
+with open('gestures.txt', 'r') as f:
     classNames = f.read().split('\n')
 
 # Initialize the webcam for Hand Gesture Recognition Python project
@@ -23,7 +23,6 @@ cap = cv2.VideoCapture(0)
 base_options = python.BaseOptions(model_asset_path='gesture_recognizer.task')
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
-
 
 # _, frame = cap.read()
 # frame = cv2.flip(frame, 1)
@@ -45,15 +44,13 @@ while True:
     if frame is not None:
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
         recognition_result = recognizer.recognize(image)
-        print(recognition_result.gestures)
+        if recognition_result.gestures:
+            print(recognition_result.gestures)
         # Show the final output
         cv2.imshow("Output", frame)
     if cv2.waitKey(1) == ord('q'):
         break
 
-
-
 # release the webcam and destroy all active windows
 cap.release()
 cv2.destroyAllWindows()
-

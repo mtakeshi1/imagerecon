@@ -1,7 +1,48 @@
+import time
 from typing import Optional
 
 import cv2
 import numpy as np
+
+
+def reshape(img, fit_to_shape):
+    ratio = min(0.9, fit_to_shape[1] / img.shape[1], fit_to_shape[0] / img.shape[0])
+    return cv2.resize(img, None, fx=ratio, fy=ratio, interpolation=cv2.INTER_CUBIC)
+
+
+def skip(rgba: np.ndarray):
+    if rgba[0] == rgba[1] and rgba[0] == rgba[2]:
+        return rgba[0] == 255 or rgba[0] == 0
+    if len(rgba) == 4:
+        return rgba[3] > 0
+    return False
+
+
+def cut(img):
+    x_removes = []
+    for x in range(img.shape[0]):
+        found = False
+        for y in range(img.shape[1]):
+            if not skip(img[x][y]):
+                found = True
+                break
+        if not found:
+            x_removes.append(x)
+    y_removes = []
+    for y in range(img.shape[1]):
+        found = False
+        for x in range(img.shape[0]):
+            if not skip(img[x][y]):
+                found = True
+                break
+        if not found:
+            y_removes.append(y)
+    # if x_removes:
+    #     img = np.delete(img, x_removes, 0)
+    if y_removes:
+        img = np.delete(img, y_removes, 1)
+    return img
+
 
 class CameraHelper:
     def __init__(self, capture: Optional[cv2.VideoCapture] = None, window_name: Optional[str] = None):
@@ -22,25 +63,19 @@ class CameraHelper:
         cv2.imshow(self.window_name, self.next_frame())
         cv2.waitKey(1)
 
-    def reshape(self, img, fit_to_shape):
-        ratio = 1.0
-        if img.shape[0] > fit_to_shape[0]:
-            ratio = fit_to_shape[0] / img.shape[0]
-
-        if img.shape[1] > fit_to_shape[1]:
-            ratio = min(fit_to_shape[1] / img.shape[1], ratio)
-        # new_shape = [int(img.shape[0] * ratio), int(img.shape[1] * ratio), img.shape[2]]
-
-        return cv2.resize(img, fx=ratio, fy=ratio, interpolation=cv2.INTER_CUBIC)
-
     def overlay_camera(self, img_path: str):
-        img = cv2.imread(img_path)
+        img = cut(cv2.imread(img_path))
         frame = self.next_frame()
         frame_shape = frame.shape
-        img_shape = img.shape
-        if img_shape[0] > frame_shape[0] or img_shape[1] > frame_shape[1]:
-            img = self.reshape(img, frame_shape)
-        frame[0:img.shape[0], 0:img.shape[1]] = img
+        img = reshape(img, frame_shape)
+        x_off = (frame.shape[0] - img.shape[0]) // 2
+        y_off = (frame.shape[1] - img.shape[1]) // 2
+
+        # frame[0:img.shape[0], 0:img.shape[1]] = img
+        for x in range(img.shape[0]):
+            for y in range(img.shape[1]):
+                if not skip(img[x][y]):
+                    frame[x+x_off][y+y_off] = img[x][y]
         cv2.imshow(self.window_name, frame)
         cv2.waitKey(1)
 
@@ -68,3 +103,10 @@ class CameraHelper:
             self.cap.release()
         if self.window_name:
             cv2.destroyWindow(self.window_name)
+
+
+if __name__ == '__main__':
+    cam = CameraHelper()
+    cam.overlay_camera('thumbsdown.png')
+    time.sleep(10)
+
