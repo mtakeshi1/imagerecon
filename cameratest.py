@@ -68,18 +68,10 @@ class CameraHelper:
         frame = self.next_frame()
         frame_shape = frame.shape
         img = reshape(img, frame_shape)
-        x_off = (frame.shape[0] - img.shape[0]) // 2
-        y_off = (frame.shape[1] - img.shape[1]) // 2
-
-        # frame[0:img.shape[0], 0:img.shape[1]] = img
-        for x in range(img.shape[0]):
-            for y in range(img.shape[1]):
-                if not skip(img[x][y]):
-                    frame[x+x_off][y+y_off] = img[x][y]
+        from detect import  draw_into
+        draw_into(frame, img)
         cv2.imshow(self.window_name, frame)
         cv2.waitKey(1)
-
-        pass
 
     def show_image(self, path):
         if path:
