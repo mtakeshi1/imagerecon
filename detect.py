@@ -1,5 +1,5 @@
 import time
-from enum import StrEnum
+# from enum import StrEnum
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import mediapipe as mp
@@ -8,12 +8,14 @@ import cv2
 from mediapipe.tasks.python.components.containers import Category
 from typing import List, Dict, Tuple
 
+from mediapipe.tasks.python.vision.core.vision_task_running_mode import VisionTaskRunningMode
+
 from cameratest import cut, skip, reshape
 
 image_paths: Dict[str, str] = {'Thumb_Up': 'thumbsup.png',
-                               'Thumb_Down': 'thumbsdown.png'
+                               'Thumb_Down': 'thumbsdown.png',
+                               'Closed_Fist': 'closedfist.png'
                                }
-
 
 # class Category(StrEnum):
 #     thumbs_up = 'Thumb_Up'
@@ -22,16 +24,20 @@ image_paths: Dict[str, str] = {'Thumb_Up': 'thumbsup.png',
 #     i_love_you = 'ILoveYou'
 
 
+duration_secs = 5
+
+
 def init_recon():
     base_options = python.BaseOptions(model_asset_path='gesture_recognizer.task')
     options = vision.GestureRecognizerOptions(base_options=base_options)
+    # options.running_mode = VisionTaskRunningMode.LIVE_STREAM
     return vision.GestureRecognizer.create_from_options(options)
 
 
 def refresh_gesture(category: Category, icons: Dict[str, Tuple[np.ndarray, float]], img_cache: Dict[str, np.ndarray],
                     shape):
     if category.category_name in image_paths.keys():
-        visible_secs = time.time() + 5
+        visible_secs = time.time() + duration_secs
         img_file = image_paths[category.category_name]
         img = img_cache.get(img_file)
         if img is None:
@@ -65,10 +71,18 @@ def main():
         if recognition_result and recognition_result.gestures:
             for gesture in recognition_result.gestures:
                 for category in gesture:
+                    print(f'detected gesture: {category}')
                     refresh_gesture(category, icons, image_cache, frame.shape)
 
         now = time.time()
         for icon in icons.values():
             if icon[1] > now:
-                draw_into(image, icon[0])
+                draw_into(frame, icon[0])
             pass
+        cv2.imshow('capture', frame)
+        if cv2.waitKey(1) == ord('q'):
+            break
+
+
+if __name__ == '__main__':
+    main()
