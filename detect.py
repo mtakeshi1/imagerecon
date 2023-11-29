@@ -6,7 +6,7 @@ import mediapipe as mp
 import numpy as np
 import cv2
 from mediapipe.tasks.python.components.containers import Category
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 
 from mediapipe.tasks.python.vision.core.vision_task_running_mode import VisionTaskRunningMode
 
@@ -27,6 +27,46 @@ image_paths: Dict[str, str] = {'Thumb_Up': 'thumbsup.png',
 duration_secs = 5
 
 
+class FakeCategory:
+    def __init__(self, cat_name):
+        self.category_name = cat_name
+
+
+class CompactImage:
+
+    @staticmethod
+    def compact_row(row):
+        result = list()
+        begin = -1
+        for i in range(0, len(row)):
+            if not skip(row[i]):
+                if begin == -1:
+                    begin = i
+            elif begin >= 0:
+                result.append([begin, row[begin:i]])
+                begin = -1
+        if begin >= 0:
+            result.append([begin, row[begin:]])
+        return result if len(result) > 0 else None
+
+    @staticmethod
+    def compact(img):
+        matrix = dict()
+        for i, row in enumerate(img):
+            cpt = CompactImage.compact_row(row)
+            if cpt:
+                matrix[i] = cpt
+        return matrix
+
+    def __init__(self, img: np.ndarray):
+        self.compacted = CompactImage.compact(img)
+
+    def copy_into(self, frame: np.ndarray):
+        for row_i, row in self.compacted.items():
+            for slice_i, section in row:
+                frame[row_i][slice_i:len(section)] = section
+
+
 def init_recon():
     base_options = python.BaseOptions(model_asset_path='gesture_recognizer.task')
     options = vision.GestureRecognizerOptions(base_options=base_options)
@@ -34,17 +74,23 @@ def init_recon():
     return vision.GestureRecognizer.create_from_options(options)
 
 
-def refresh_gesture(category: Category, icons: Dict[str, Tuple[np.ndarray, float]], img_cache: Dict[str, np.ndarray],
+def refresh_gesture(category: Union[Category, FakeCategory], icons: Dict[str, Tuple[CompactImage, float]],
+                    img_cache: Dict[str, np.ndarray],
                     shape):
     if category.category_name in image_paths.keys():
         visible_secs = time.time() + duration_secs
-        img_file = image_paths[category.category_name]
-        img = img_cache.get(img_file)
-        if img is None:
-            img: np.ndarray = cut(cv2.imread(image_paths[category.category_name]))
-            img = reshape(img, shape)
-            img_cache[img_file] = img
+        img = get_image(category, img_cache, shape)
         icons[category.category_name] = (img, visible_secs)
+
+
+def get_image(category, img_cache, shape):
+    img_file = image_paths[category.category_name]
+    img = img_cache.get(img_file)
+    if img is None:
+        img: np.ndarray = cut(cv2.imread(image_paths[category.category_name]))
+        img = reshape(img, shape)
+        img_cache[img_file] = img
+    return CompactImage(img)
 
 
 def draw_into(target: np.ndarray, icon: np.ndarray):
@@ -59,7 +105,7 @@ def draw_into(target: np.ndarray, icon: np.ndarray):
 def main():
     recon = init_recon()
     cap = cv2.VideoCapture(0)
-    icons: Dict[str, Tuple[np.ndarray, float]] = {}
+    icons: Dict[str, Tuple[CompactImage, float]] = {}
     image_cache = {}
     while True:
         ret, frame = cap.read()
@@ -77,11 +123,16 @@ def main():
         now = time.time()
         for icon in icons.values():
             if icon[1] > now:
-                draw_into(frame, icon[0])
-            pass
+                # draw_into(frame, icon[0])
+                icon[0].copy_into(frame)
         cv2.imshow('capture', frame)
-        if cv2.waitKey(1) == ord('q'):
+        key = cv2.waitKey(1)
+        if key == ord('q'):
             break
+        elif key == ord('u'):
+            refresh_gesture(FakeCategory('Thumb_Up'), icons, image_cache, frame.shape)
+        elif key == ord('d'):
+            refresh_gesture(FakeCategory('Thumb_Down'), icons, image_cache, frame.shape)
 
 
 if __name__ == '__main__':
