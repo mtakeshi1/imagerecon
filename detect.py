@@ -1,5 +1,4 @@
 import time
-# from enum import StrEnum
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import mediapipe as mp
@@ -7,8 +6,8 @@ import numpy as np
 import cv2
 from mediapipe.tasks.python.components.containers import Category
 from typing import List, Dict, Tuple, Union
-
-from mediapipe.tasks.python.vision.core.vision_task_running_mode import VisionTaskRunningMode
+from compact import CompactImage
+import pyvirtualcam
 
 from cameratest import cut, skip, reshape
 
@@ -17,54 +16,12 @@ image_paths: Dict[str, str] = {'Thumb_Up': 'thumbsup.png',
                                'Closed_Fist': 'closedfist.png'
                                }
 
-# class Category(StrEnum):
-#     thumbs_up = 'Thumb_Up'
-#     thumbs_down = 'Thumb_Down'
-#     open_palm = 'Open_Palm'
-#     i_love_you = 'ILoveYou'
-
-
 duration_secs = 5
 
 
 class FakeCategory:
     def __init__(self, cat_name):
         self.category_name = cat_name
-
-
-class CompactImage:
-
-    @staticmethod
-    def compact_row(row):
-        result = list()
-        begin = -1
-        for i in range(0, len(row)):
-            if not skip(row[i]):
-                if begin == -1:
-                    begin = i
-            elif begin >= 0:
-                result.append([begin, row[begin:i]])
-                begin = -1
-        if begin >= 0:
-            result.append([begin, row[begin:]])
-        return result if len(result) > 0 else None
-
-    @staticmethod
-    def compact(img):
-        matrix = dict()
-        for i, row in enumerate(img):
-            cpt = CompactImage.compact_row(row)
-            if cpt:
-                matrix[i] = cpt
-        return matrix
-
-    def __init__(self, img: np.ndarray):
-        self.compacted = CompactImage.compact(img)
-
-    def copy_into(self, frame: np.ndarray):
-        for row_i, row in self.compacted.items():
-            for slice_i, section in row:
-                frame[row_i][slice_i:len(section)] = section
 
 
 def init_recon():
@@ -107,32 +64,36 @@ def main():
     cap = cv2.VideoCapture(0)
     icons: Dict[str, Tuple[CompactImage, float]] = {}
     image_cache = {}
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            time.sleep(1)
-            continue
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-        recognition_result = recon.recognize(image)
-        if recognition_result and recognition_result.gestures:
-            for gesture in recognition_result.gestures:
-                for category in gesture:
-                    print(f'detected gesture: {category}')
-                    refresh_gesture(category, icons, image_cache, frame.shape)
+    with pyvirtualcam.Camera(width=640, height=480, fps=20, device='/dev/video2') as cam:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(1)
+                continue
+            image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+            recognition_result = recon.recognize(image)
+            if recognition_result and recognition_result.gestures:
+                for gesture in recognition_result.gestures:
+                    for category in gesture:
+                        print(f'detected gesture: {category}')
+                        refresh_gesture(category, icons, image_cache, frame.shape)
 
-        now = time.time()
-        for icon in icons.values():
-            if icon[1] > now:
-                # draw_into(frame, icon[0])
-                icon[0].copy_into(frame)
-        cv2.imshow('capture', frame)
-        key = cv2.waitKey(1)
-        if key == ord('q'):
-            break
-        elif key == ord('u'):
-            refresh_gesture(FakeCategory('Thumb_Up'), icons, image_cache, frame.shape)
-        elif key == ord('d'):
-            refresh_gesture(FakeCategory('Thumb_Down'), icons, image_cache, frame.shape)
+            now = time.time()
+            for icon in icons.values():
+                if icon[1] > now:
+                    icon[0].copy_into(frame)
+            cam.send(frame)
+            # must resize to target shape =(
+            # color scheme or something else is also strange
+            cam.sleep_until_next_frame()
+            # cv2.imshow('capture', frame)
+            # key = cv2.waitKey(1)
+            # if key == ord('q'):
+            #     break
+            # elif key == ord('u'):
+            #     refresh_gesture(FakeCategory('Thumb_Up'), icons, image_cache, frame.shape)
+            # elif key == ord('d'):
+            #     refresh_gesture(FakeCategory('Thumb_Down'), icons, image_cache, frame.shape)
 
 
 if __name__ == '__main__':

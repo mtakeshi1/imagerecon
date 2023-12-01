@@ -2,7 +2,7 @@ import unittest
 
 import cv2
 
-from detect import CompactImage
+from compact import CompactImage
 
 red = [255, 0, 0, 0]
 black = [255, 255, 255, 0]
@@ -21,7 +21,10 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(None, r)
 
     def test_real_img(self):
-        t = cv2.imread('thumbsup.png')
+        t = CompactImage(cv2.imread('thumbsup.png'))
+        t2 = cv2.imread('thumbsup.png')
+        t.copy_into(t2)
+
 
 
 if __name__ == '__main__':
